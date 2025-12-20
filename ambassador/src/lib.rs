@@ -111,6 +111,41 @@
 //! ```
 //!
 //! # Backwards Compatibility
+//! ## 0.4.x -> 0.5.x
+//! Avoiding the automatic where clause is no longer supported. The macros now call the trait method
+//! specifically to avoid name collisions which prevents the use cases it used to support (see
+//! https://github.com/hobofan/ambassador/issues/75). Instead, delegating to "self"  can be used
+//! if target has intrinsic methods instead of implementing the required trait, and delegating to
+//! remote "deref" and "deref_mut" methods can be used if delegation implementation required
+//! dereferences. For example:
+//! ```
+//! use ambassador::{delegatable_trait, delegate_to_remote_methods, Delegate};
+//!
+//! #[derive(Delegate)] // Added
+//! #[delegate(Shout, target="self")] // Added
+//! struct Cat;
+//!
+//! #[delegatable_trait]
+//! trait Shout {
+//!   fn shout(&self);
+//! }
+//!
+//! impl Cat {
+//!   fn shout(&self) {
+//!      println!("meow")
+//!   }
+//! }
+//!
+//! #[delegate_to_remote_methods] // Added
+//! #[delegate(Shout, target_ref = "deref")] //Added
+//! impl<T> Box<T> {} // Added
+//!
+//! #[derive(Delegate)]
+//! #[delegate(Shout)] // Automatic where clause now works
+//! struct WrappedCat(Box<Cat>);
+//!
+//! WrappedCat(Box::new(Cat)).shout()
+//! ```
 //! ## 0.3.x -> 0.4.x
 //! ### Creating delegateable traits
 //! Delagatable trait macros `ambassador_impl_Trait` are no longer exported at the crate root, and
@@ -120,7 +155,7 @@
 //! ### Using delegateable traits
 //! Switching versions does not affect usages of delegateable traits
 //! ## 0.2.x -> 0.3.x
-//! Since delegateable traits from one crate can be used in anther crate backwards compatibility of switching to 0.3.x depends on the use case
+//! Since delegateable traits from one crate can be used in another crate backwards compatibility of switching to 0.3.x depends on the use case
 //! ### Self Contained Crate
 //! Switching to 0.3.x should just work,
 //! in this case it safe to disable the "backward_compatible" feature
@@ -221,7 +256,7 @@ use crate::register::build_register_trait;
 ///
 /// A possible use case of this is when refactoring some methods of a public type into a trait,
 /// the type still needs to implement the methods outside the trait for semver reasons,
-/// and using this feature reduces the boilderplate of implementing the trait with the same methods.
+/// and using this feature reduces the boilerplate of implementing the trait with the same methods.
 ///
 ///
 /// ```
@@ -268,7 +303,7 @@ use crate::register::build_register_trait;
 /// We can also delegate traits with generics.
 /// The type parameters listed in the `generics` key are treated as fully generic.
 /// The automatically added where clause ensures they are valid for the inner type being delegated to.
-/// Explict where clauses to further refine these types can be added as normal.
+/// Explicit where clauses to further refine these types can be added as normal.
 ///
 /// ```
 /// use ambassador::{delegatable_trait, Delegate};
@@ -293,64 +328,7 @@ use crate::register::build_register_trait;
 /// // We could also use #[delegate(Shout<& 'a str>, generics = "'a")] to only delegate for &str
 /// pub struct WrappedCat(Cat);
 /// ```
-///
-///
-/// #### `#[delegate(Shout, automatic_where_clause = "false")]` - inhibit automatic generation of `where` clause.
-///
-/// Normally `#[derive(Delegate)]` generates code to ensure that chosen field
-/// indeed implements the trait you want to implement for the container struct.
-///
-/// For example, the `#[derive(Delegate)]` + `#[delegate(Shout<X>, generics = "X")]`
-/// in the example above will emit code that requires `Cat` (the type we're
-/// delegating to) to implement `Shout<X>`: `Cat: Shout<X>`.
-///
-/// However, you may want to delegate implementation to a type that does not in
-/// fact fully implement the trait in question but instead has _compatible
-/// methods_ that can be called as if the trait were in fact implemented.
-///
-/// One notable examples of this is delegating a trait implementation to
-/// container types holding a trait object; i.e. `MyTrait` for
-/// `Box<dyn MyTrait>`. In this example, `Box<dyn MyTrait`
-/// [`Deref`](core::ops::Deref)s into `dyn MyTrait` which provides `MyTrait`s
-/// methods; this allows us effectively just call `MyTrait`s methods directly
-/// on `Box<dyn MyTrait>` even though `Box<dyn MyTrait>` does not actually
-/// implement `MyTrait`.
-///
-/// `automatic_where_clause = "false"` lets us create a delegated impl of
-/// `MyTrait` that takes advantage of this.
-///
-/// ```
-/// use ambassador::{delegatable_trait, Delegate};
-/// use std::fmt::Display;
-///
-/// #[delegatable_trait]
-/// pub trait Shout {
-///     fn shout(&self, input: &str) -> String;
-/// }
-///
-/// pub struct Cat;
-///
-/// impl Shout for Cat {
-///     fn shout(&self, input: &str) -> String {
-///         format!("{} - meow!", input)
-///     }
-/// }
-///
-/// #[derive(Delegate)]
-/// #[delegate(Shout, automatic_where_clause = "false")]
-/// pub struct BoxedAnimal(pub Box<dyn Shout + Send + Sync>);
-///
-/// // Can accept both `Cat` and `BoxedAnimal`.
-/// fn recording_studio<S: Shout>(voice_actor: S){}
-/// ```
-///
-/// Note that it is also possible to create such a delegated impl by making use
-/// of [`macro@delegate_to_remote_methods`] with [`Deref::deref`] and
-/// [`DerefMut::deref_mut`] as the target methods. The docs on
-/// [`macro@delegate_to_remote_methods`] contain an example of this.
-///
-/// [`Deref::deref`]: core::ops::Deref::deref
-/// [`DerefMut::deref_mut`]: core::ops::DerefMut::deref_mut
+
 #[proc_macro_derive(Delegate, attributes(delegate))]
 pub fn delegate_macro(input: TokenStream) -> TokenStream {
     derive::delegate_macro(input)
@@ -393,7 +371,7 @@ pub fn delegate_macro(input: TokenStream) -> TokenStream {
 ///         self.0.deref()
 ///     }
 ///
-///     // Note we don't need target_mut = "inner_mut" in this case but it is included as an example
+///     // Note we don't need target_mut = "inner_mut" in this case, but it is included as an example
 ///     // The return type must be &mut Cat to match inner's return type &Cat
 ///     fn inner_mut(&mut self) -> &mut Cat {
 ///         self.0.deref_mut()
@@ -704,6 +682,32 @@ pub fn delegate_to_methods(_attr: TokenStream, input: TokenStream) -> TokenStrea
 ///     let d: Box<Cat> = Box::new(Cat);
 ///     shout(&d);
 /// }
+/// ```
+///
+///
+/// #### `deref` and `deref_mut` methods
+///
+/// Specifying the methods "deref" or "deref_mut" will automatically delegate to
+/// [`Deref::deref`](core::ops::Deref::deref) and [`DerefMut::deref_mut`](core::ops::DerefMut::deref_mut)
+/// if they are not otherwise specified
+/// ```
+/// # use ambassador::{delegatable_trait, delegate_to_remote_methods};
+/// # #[delegatable_trait]
+/// # pub trait Shout {
+/// #     fn shout(&self, input: &str) -> String;
+/// # }
+/// # pub struct Cat;
+/// # impl Shout for Cat {
+/// #     fn shout(&self, input: &str) -> String {
+/// #         format!("{} - meow!", input)
+/// #     }
+/// # }
+///
+/// #[delegate_to_remote_methods]
+/// #[delegate(Shout, target_ref = "deref")]
+/// impl<T> Box<T> {}
+///
+/// println!("{}", Shout::shout(&Box::new(Cat), ""))
 /// ```
 #[proc_macro_attribute]
 pub fn delegate_to_remote_methods(_attr: TokenStream, input: TokenStream) -> TokenStream {
