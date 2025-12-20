@@ -328,7 +328,6 @@ use crate::register::build_register_trait;
 /// // We could also use #[delegate(Shout<& 'a str>, generics = "'a")] to only delegate for &str
 /// pub struct WrappedCat(Cat);
 /// ```
-
 #[proc_macro_derive(Delegate, attributes(delegate))]
 pub fn delegate_macro(input: TokenStream) -> TokenStream {
     derive::delegate_macro(input)
