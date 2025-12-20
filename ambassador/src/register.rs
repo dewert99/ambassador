@@ -314,7 +314,7 @@ fn build_trait_items(
                             async move {
                                 match self {
                                     $($variants(inner) => #method_invocation),*
-                                 }
+                                }
                             }
                         }
                     } else {
@@ -390,11 +390,18 @@ fn build_method_invocation(
         quote!()
     };
 
-    if use_trait_method {
+    let mut method_invocation = if use_trait_method {
         quote! { #trait_ident::#method_ident::<#(#generics,)*>(#field, #argument_list) #post }
     } else {
         quote! { #field.#method_ident::<#(#generics,)*>(#argument_list) #post }
+    };
+    if original_method.sig.unsafety.is_some() {
+        method_invocation = quote! (
+            // SAFETY: All safety obligation are passed along
+            unsafe {#method_invocation}
+        )
     }
+    method_invocation
 }
 
 fn returns_impl_future(output: &ReturnType) -> bool {
