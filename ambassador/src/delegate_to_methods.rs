@@ -6,13 +6,15 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::convert::{TryFrom, TryInto};
 use std::default::Default;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    parse_macro_input, GenericParam, ItemImpl, LitStr, Result, ReturnType, Token, Type, WhereClause,
+    parse_macro_input, parse_quote, GenericParam, ItemImpl, LitStr, Result, ReturnType, Token,
+    Type, WhereClause,
 };
 
 struct DelegateImplementer {
@@ -125,13 +127,25 @@ fn search_methods<'a>(
     id: &Ident,
     implementer: &'a DelegateImplementer,
     receiver: ReceiverType,
-) -> Result<&'a Type> {
+    used_deref: &mut bool,
+) -> Result<Cow<'a, Type>> {
     let DelegateImplementer {
         methods,
         invalid_methods,
+        ty,
         ..
     } = implementer;
+    let deref = Ident::new("deref", id.span());
+    let deref_mut = Ident::new("deref_mut", id.span());
     match methods.iter().find(|m| &m.name == id) {
+        None if (*id == deref && receiver == ReceiverType::Ref)
+            || (*id == deref_mut && receiver == ReceiverType::MutRef) =>
+        {
+            *used_deref = true;
+            Ok(Cow::Owned(
+                parse_quote!(<#ty as ::core::ops::Deref>::Target),
+            ))
+        }
         None => match invalid_methods.iter().find(|(name, _)| name == id) {
             Some((_, err)) => {
                 let mut err: syn::Error = err.clone();
@@ -152,7 +166,7 @@ fn search_methods<'a>(
                     "method needs to have a receiver of type {}", receiver
                 )
             } else {
-                Ok(&res.ret)
+                Ok(Cow::Borrowed(&res.ret))
             }
         }
     }
@@ -164,11 +178,14 @@ impl DelegateTarget {
         &self,
         span: proc_macro2::Span,
         implementer: &'a DelegateImplementer,
-    ) -> Result<&'a Type> {
+        used_deref: &mut bool,
+    ) -> Result<Cow<'a, Type>> {
         let res = self
             .as_arr()
             .iter()
-            .flat_map(|(recv_ty, id)| id.map(|id| search_methods(id, implementer, *recv_ty)))
+            .flat_map(|(recv_ty, id)| {
+                id.map(|id| search_methods(id, implementer, *recv_ty, used_deref))
+            })
             .fold(None, |rsf, x| match (rsf, x) {
                 (None, x) => Some(x),
                 (_, Err(x)) | (Some(Err(x)), _) => Some(Err(x)),
@@ -331,15 +348,29 @@ fn delegate_single_attr(
     let mut where_clause =
         delegate_shared::build_where_clause(args.where_clauses, implementer.where_clause.as_ref());
 
-    let delegate_ty = args.target.get_ret_type(span, implementer)?;
+    let mut added_deref = false;
+    let delegate_ty = args
+        .target
+        .get_ret_type(span, implementer, &mut added_deref)?;
     let owned_ident = args.target.owned_id.into_iter();
     let ref_ident = args.target.ref_id.into_iter();
     let ref_mut_ident = args.target.ref_mut_id.into_iter();
-    add_auto_where_clause(&mut where_clause, &trait_path_full, delegate_ty);
-    let res = quote! {
+    add_auto_where_clause(&mut where_clause, &trait_path_full, delegate_ty.as_ref());
+    let mut res = quote! {
         impl <#(#impl_generics,)*> #trait_path_full for #implementer_ty #where_clause {
             #macro_name!{body_struct(<#trait_generics_p>, #delegate_ty, (#(#owned_ident())*), (#(#ref_ident())*), (#(#ref_mut_ident())*))}
         }
     };
+
+    if added_deref {
+        res = quote! {
+            const _: () = {
+                #[allow(unused_imports)]
+                use ::core::ops::{Deref as _, DerefMut as _};
+                #res
+                ()
+            };
+        }
+    }
     Ok(res)
 }

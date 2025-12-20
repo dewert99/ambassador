@@ -90,8 +90,9 @@ pub fn build_register_trait(original_item: &ItemTrait) -> TokenStream {
             (body_struct(<#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
                 #(#struct_items)*
             };
-            (check_non_empty($err:literal, $s:ident.$($t:tt)+)) => {$s.$($t)*};
-            (check_non_empty($err:literal, $s:ident.)) => {
+            (resolve_path($err:literal, $(& $(mut)?)?,  $s:ident.$field:ident$($t:tt)+)) => {$s.$field$($t)*};
+            (resolve_path($err:literal, $(& $(mut $($emp:lifetime)?)?)?,  $s:ident.$field:tt)) => {$(& $(mut $($emp)?)?)?  $s.$field};
+            (resolve_path($err:literal, $(& $(mut)?)?,  $s:ident.)) => {
                 compile_error! {$err}
             };
             (body_enum(<#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
@@ -275,23 +276,28 @@ fn build_trait_items(
                 {
                     let field_ident = match receiver_type(&original_method.sig)? {
                         ReceiverType::Owned => {
-                            quote!(#macro_name!(check_non_empty(
+                            quote!(#macro_name!(resolve_path(
                                 "target_owned was not specified but was needed", 
-                                self.$($ident_owned)*)))
+                                ,self.$($ident_owned)*)))
                         }
                         ReceiverType::Ref => {
-                            quote!(#macro_name!(check_non_empty(
+                            quote!(#macro_name!(resolve_path(
                                 "target_ref was not specified but was needed", 
-                                self.$($ident_ref)*)))
+                                &,self.$($ident_ref)*)))
                         }
                         ReceiverType::MutRef => {
-                            quote!(#macro_name!(check_non_empty(
+                            quote!(#macro_name!(resolve_path(
                                 "target_mut was not specified but was needed",
-                                self.$($ident_ref_mut)*)))
+                                &mut,self.$($ident_ref_mut)*)))
                         }
                     };
-                    let method_invocation =
-                        build_method_invocation(original_method, &field_ident, false);
+                    let method_invocation = build_method_invocation(
+                        original_method,
+                        &field_ident,
+                        trait_ident,
+                        false,
+                        true,
+                    );
                     build_method(&method_sig, method_invocation, quote!())
                 },
                 {
@@ -299,7 +305,9 @@ fn build_trait_items(
                     let method_invocation = build_method_invocation(
                         original_method,
                         &quote!(inner),
+                        trait_ident,
                         returns_impl_future,
+                        true,
                     );
                     let method_invocation = if returns_impl_future {
                         quote! {
@@ -319,8 +327,13 @@ fn build_trait_items(
                     build_method(&method_sig, method_invocation, quote!())
                 },
                 {
-                    let method_invocation =
-                        build_method_invocation(original_method, &quote!(self), false);
+                    let method_invocation = build_method_invocation(
+                        original_method,
+                        &quote!(self),
+                        trait_ident,
+                        false,
+                        false,
+                    );
                     build_method(
                         &method_sig,
                         method_invocation,
@@ -347,8 +360,10 @@ fn build_trait_items(
 
 fn build_method_invocation(
     original_method: &syn::TraitItemFn,
-    field_ident: &TokenStream,
+    field: &TokenStream,
+    trait_ident: &Ident,
     force_add_await: bool,
+    use_trait_method: bool,
 ) -> TokenStream {
     let method_sig = &original_method.sig;
     let method_ident = &method_sig.ident;
@@ -375,9 +390,11 @@ fn build_method_invocation(
         quote!()
     };
 
-    let method_invocation =
-        quote! { #field_ident.#method_ident::<#(#generics,)*>(#argument_list) #post };
-    method_invocation
+    if use_trait_method {
+        quote! { #trait_ident::#method_ident::<#(#generics,)*>(#field, #argument_list) #post }
+    } else {
+        quote! { #field.#method_ident::<#(#generics,)*>(#argument_list) #post }
+    }
 }
 
 fn returns_impl_future(output: &ReturnType) -> bool {
