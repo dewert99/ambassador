@@ -58,7 +58,10 @@ impl CfgNames {
     }
 }
 
-pub fn build_register_trait(original_item: &ItemTrait, inline_mode: InlineMode) -> TokenStream {
+pub(crate) fn build_register_trait(
+    original_item: &ItemTrait,
+    inline_mode: InlineMode,
+) -> TokenStream {
     let trait_ident = &original_item.ident;
     let macro_name = macro_name(trait_ident);
     let macro_def = quote::format_ident!("_{}", macro_name);
