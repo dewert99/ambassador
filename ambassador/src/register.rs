@@ -1,3 +1,4 @@
+use crate::delegate_shared::InlineMode;
 use crate::util::{error, process_results, receiver_type, ReceiverType};
 use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream, TokenTree};
@@ -57,7 +58,7 @@ impl CfgNames {
     }
 }
 
-pub fn build_register_trait(original_item: &ItemTrait) -> TokenStream {
+pub fn build_register_trait(original_item: &ItemTrait, inline_mode: InlineMode) -> TokenStream {
     let trait_ident = &original_item.ident;
     let macro_name = macro_name(trait_ident);
     let macro_def = quote::format_ident!("_{}", macro_name);
@@ -80,26 +81,41 @@ pub fn build_register_trait(original_item: &ItemTrait) -> TokenStream {
     let gen_idents_pat: TokenStream = gen_idents.into_iter().map(|id| quote! {$ #id ,}).collect();
     let vis = &original_item.vis;
     let cfg_definitions = cfg_names.definitions(&macro_name, vis);
+    let default_inline_bracket = inline_mode.as_bracket_tokens();
     quote! {
         #[macro_export]
         #[doc(hidden)]
         macro_rules! #macro_def {
+            // Override arms: explicit inline specifier in brackets
+            (body_struct([$($inline:meta)*] <#gen_matcher>, $ty:ty, $field_ident:tt)) => {
+                #macro_name!{body_struct([$($inline)*] <#gen_idents_pat>, $ty, ($field_ident), ($field_ident), ($field_ident))}
+            };
+            (body_struct([$($inline:meta)*] <#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
+                #(#struct_items)*
+            };
+            // Default arms: redirect using trait-level default
             (body_struct(<#gen_matcher>, $ty:ty, $field_ident:tt)) => {
-                #macro_name!{body_struct(<#gen_idents_pat>, $ty, ($field_ident), ($field_ident), ($field_ident))}
+                #macro_name!{body_struct(#default_inline_bracket <#gen_idents_pat>, $ty, ($field_ident), ($field_ident), ($field_ident))}
             };
             (body_struct(<#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
-                #(#struct_items)*
+                #macro_name!{body_struct(#default_inline_bracket <#gen_idents_pat>, $ty, ($($ident_owned)*), ($($ident_ref)*), ($($ident_ref_mut)*))}
             };
             (resolve_path($err:literal, $(& $(mut)?)?,  $s:ident.$field:ident$($t:tt)+)) => {$s.$field$($t)*};
             (resolve_path($err:literal, $(& $(mut $($emp:lifetime)?)?)?,  $s:ident.$field:tt)) => {$(& $(mut $($emp)?)?)?  $s.$field};
             (resolve_path($err:literal, $(& $(mut)?)?,  $s:ident.)) => {
                 compile_error! {$err}
             };
-            (body_enum(<#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
+            (body_enum([$($inline:meta)*] <#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
                 #(#enum_items)*
             };
-            (body_self(<#gen_matcher>)) => {
+            (body_enum(<#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
+                #macro_name!{body_enum(#default_inline_bracket <#gen_idents_pat>, $ty, ($($other_tys),*), ($($variants),+))}
+            };
+            (body_self([$($inline:meta)*] <#gen_matcher>)) => {
                 #(#self_items)*
+            };
+            (body_self(<#gen_matcher>)) => {
+                #macro_name!{body_self(#default_inline_bracket <#gen_idents_pat>)}
             };
             (use_assoc_ty_bounds) => {
                 #assoc_ty_bounds
@@ -209,7 +225,7 @@ fn build_method(
     extr_attrs: TokenStream,
 ) -> TokenStream {
     quote! {
-        #[inline]
+        $(#[$inline])*
         #[allow(unused_braces)]
         #extr_attrs
         #method_sig {

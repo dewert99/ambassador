@@ -169,12 +169,16 @@ fn delegate_single_attr(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let mut where_clause = delegate_shared::build_where_clause(args.where_clauses, where_clause);
     let impl_generics = delegate_shared::merge_impl_generics(impl_generics, args.generics);
+    let inline_attr = match args.inline {
+        Some(mode) => mode.as_bracket_tokens(),
+        None => TokenStream2::new(),
+    };
     let implementer_ident = &implementer.ty;
     use {DelegateImplementerInfo::*, DelegateTarget::*};
     let res = match (&args.target, &implementer.info) {
         (TrgSelf, _) => quote! {
             impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                #macro_name!{body_self(<#trait_generics_p>)}
+                #macro_name!{body_self(#inline_attr <#trait_generics_p>)}
             }
         },
         (Field(field), Enum {..}) => return error!(
@@ -202,7 +206,7 @@ fn delegate_single_attr(
                     use super::*;
                     #macro_name!{use_assoc_ty_bounds}
                     impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                        #macro_name!{body_enum(<#trait_generics_p>, #first_type, (#(#other_types),*), (#(#implementer_ident::#variant_idents),*))}
+                        #macro_name!{body_enum(#inline_attr <#trait_generics_p>, #first_type, (#(#other_types),*), (#(#implementer_ident::#variant_idents),*))}
                     }
                 }
             }
@@ -220,7 +224,7 @@ fn delegate_single_attr(
 
             quote! {
                 impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                    #macro_name!{body_struct(<#trait_generics_p>, #field_type, #field_ident)}
+                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, #field_ident)}
                 }
             }
         }
@@ -238,7 +242,7 @@ fn delegate_single_attr(
 
             quote! {
                 impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                    #macro_name!{body_struct(<#trait_generics_p>, #field_type, #field_ident)}
+                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, #field_ident)}
                 }
             }
         }

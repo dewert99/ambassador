@@ -177,6 +177,7 @@ mod util;
 use proc_macro::TokenStream;
 use quote::quote;
 
+use crate::delegate_shared::parse_inline_mode;
 use crate::register::build_register_trait;
 
 /// Delegate the implementation of a trait to a struct field/enum variants by adding `#[derive(Delegate)]` and its associated attribute `#[delegate(Trait)]` to it:
@@ -771,9 +772,13 @@ pub fn delegate_remote(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn delegatable_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn delegatable_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let inline_mode = match parse_inline_mode(attr.into()) {
+        Ok(mode) => mode,
+        Err(err) => return err.to_compile_error().into(),
+    };
     let original_item: syn::ItemTrait = syn::parse(item).unwrap();
-    let register_trait = build_register_trait(&original_item);
+    let register_trait = build_register_trait(&original_item, inline_mode);
 
     let expanded = quote! {
         #original_item
@@ -809,9 +814,13 @@ pub fn delegatable_trait(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// pub struct WrappedCat(Cat);
 /// ```
 #[proc_macro_attribute]
-pub fn delegatable_trait_remote(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn delegatable_trait_remote(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let inline_mode = match parse_inline_mode(attr.into()) {
+        Ok(mode) => mode,
+        Err(err) => return err.to_compile_error().into(),
+    };
     let original_item: syn::ItemTrait = syn::parse(item).unwrap();
-    let register_trait = build_register_trait(&original_item);
+    let register_trait = build_register_trait(&original_item, inline_mode);
 
     TokenStream::from(register_trait)
 }

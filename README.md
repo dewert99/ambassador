@@ -13,7 +13,6 @@
 
 <br/>
 
-
 Delegating the implementation of traits to enum variants or fields of a struct normally requires a lot of boilerplate code. Ambassador is an attempt to eliminate that boilerplate by deriving the delegating trait implementation via procedural macros.
 
 **The minimum supported Rust version is 1.68.0.**
@@ -83,6 +82,7 @@ pub struct WrappedAnimals(Cat, Dog);
 ```
 
 #### `#[delegate(..., target = "self")]` - `target="self"`
+
 Types that implement all the methods of a trait without implementing the trait itself,
 can be made to implement that trait by setting `target="self"`.
 This doesn't work for traits with associated types and constants, and requires the where clause to be added explicitly (see `where` key).
@@ -91,7 +91,6 @@ If the type doesn't actually implement the methods (possibly due to an incomplet
 A possible use case of this is when refactoring some methods of a public type into a trait,
 the type still needs to implement the methods outside the trait for semver reasons,
 and using this feature reduces the boilderplate of implementing the trait with the same methods.
-
 
 ```rust
 #[derive(Delegate)]
@@ -110,6 +109,7 @@ impl Cat {
 To make a delegation apply only for certain generic bounds, similar to a [native where clause](https://doc.rust-lang.org/stable/rust-by-example/generics/where.html), you can specify a `where` attribute:
 
 A where clause is automatically applied that makes sure the target field implements the trait being delegated
+
 ```rust
 #[derive(Delegate)]
 #[delegate(Shout, where = "A: Debug")] // <---- Delegate implementation of Shout to .foo field if foo field implements Debug
@@ -117,7 +117,6 @@ pub struct WrappedFoo<A> {
   foo: A,
 }
 ```
-
 
 #### `#[delegate(Shout<X>)]` - trait generics
 
@@ -150,7 +149,6 @@ impl<T: Display> Shout<T> for Cat {
 // We could also use #[delegate(Shout<& 'a str>, generics = "'a")] to only delegate for &str
 pub struct WrappedCat(Cat);
 ```
-
 
 ### For remote traits: `#[delegatable_trait_remote]`
 
@@ -198,6 +196,33 @@ struct WrappedAnimals<A: Shout> {
 ```
 
 Note: Because of the orphan rule `#[delegatable_trait_remote]` and `#[delegate_remote]` can't be combined
+
+## Controlling inlining
+
+Both `#[delegatable_trait]` and `#[delegate]` can set the inlining mode for the
+delegated methods. You have to use the `inline` key with the values `yes` (i.e.,
+`#[inline]`), `no` (no inlining attribute), `always` (i.e.,
+`#[inline(always)]`), or `never` (i.e., `#[inline(never)]`).
+
+The value set in `#[delegatable_trait]` is used as the default for all
+delegations of that trait, but can be overridden by setting the `inline` key in
+`#[delegate]` to a different value. The default inlining mode is `yes` (i.e., `#[inline]`).
+
+```rust
+
+#[delegatable_trait(inline = "always")] // <-------- Change default from "yes" to "always" for all delegations
+pub trait Shout {
+    fn shout(&self, input: &str) -> String;
+}
+
+#[derive(Delegate)]
+#[delegate(Shout)] // <-------- Use default ("always")
+pub struct WrappedDog(Dog);
+
+#[derive(Delegate)]
+#[delegate(Shout, inline = "never")] // <-------- Override inlining mode for this delegation
+pub struct WrappedCat(Cat);
+```
 
 ## Usage Examples
 
@@ -321,4 +346,3 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
 </sub>
-

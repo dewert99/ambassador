@@ -1,7 +1,7 @@
 use crate::util::error;
 use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use std::cmp::Ordering;
 use syn::ext::IdentExt;
 use syn::parse::{ParseStream, Parser};
@@ -17,12 +17,62 @@ pub(super) trait DelegateTarget: Default {
     fn try_update(&mut self, key: &str, lit: LitStr) -> Option<Result<()>>;
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) enum InlineMode {
+    #[default]
+    Yes,
+    No,
+    Always,
+    Never,
+}
+
+impl InlineMode {
+    fn from_lit(lit: &LitStr) -> Result<Self> {
+        match lit.value().as_str() {
+            "yes" => Ok(InlineMode::Yes),
+            "no" => Ok(InlineMode::No),
+            "always" => Ok(InlineMode::Always),
+            "never" => Ok(InlineMode::Never),
+            _ => error!(
+                lit.span(),
+                "invalid value for \"inline\": expected \"yes\", \"no\", \"always\", or \"never\""
+            ),
+        }
+    }
+
+    pub(crate) fn as_bracket_tokens(self) -> TokenStream2 {
+        match self {
+            InlineMode::Yes => quote!([inline]),
+            InlineMode::No => quote!([]),
+            InlineMode::Always => quote!([inline(always)]),
+            InlineMode::Never => quote!([inline(never)]),
+        }
+    }
+}
+
+pub(crate) fn parse_inline_mode(attr: TokenStream2) -> Result<InlineMode> {
+    if attr.is_empty() {
+        return Ok(InlineMode::Yes);
+    }
+    (|input: ParseStream| -> Result<InlineMode> {
+        let key = input.call(Ident::parse_any)?;
+        if key != "inline" {
+            return error!(key.span(), "invalid key for a delegatable_trait attribute");
+        }
+        let _: Token![=] = input.parse()?;
+        let val: LitStr = input.parse()?;
+        InlineMode::from_lit(&val)
+    })
+    .parse2(attr)
+}
+
 #[derive(Default)]
 pub(super) struct DelegateArgs<T: DelegateTarget> {
     pub(crate) target: T,
     pub(crate) where_clauses: Punctuated<WherePredicate, Comma>,
     pub(crate) generics: Vec<GenericParam>,
     pub(crate) inhibit_automatic_where_clause: bool,
+    pub(crate) inline: Option<InlineMode>,
 }
 
 impl<T: DelegateTarget> DelegateArgs<T> {
@@ -42,6 +92,9 @@ impl<T: DelegateTarget> DelegateArgs<T> {
             "automatic_where_clause" => {
                 let auto_where_val: LitBool = lit.parse()?;
                 self.inhibit_automatic_where_clause = !auto_where_val.value;
+            }
+            "inline" => {
+                self.inline = Some(InlineMode::from_lit(&lit)?);
             }
             key => self
                 .target
