@@ -348,6 +348,10 @@ fn delegate_single_attr(
     let mut where_clause =
         delegate_shared::build_where_clause(args.where_clauses, implementer.where_clause.as_ref());
 
+    let inline_attr = match args.inline {
+        Some(mode) => mode.as_bracket_tokens(),
+        None => TokenStream2::new(),
+    };
     let mut added_deref = false;
     let delegate_ty = args
         .target
@@ -358,7 +362,7 @@ fn delegate_single_attr(
     add_auto_where_clause(&mut where_clause, &trait_path_full, delegate_ty.as_ref());
     let mut res = quote! {
         impl <#(#impl_generics,)*> #trait_path_full for #implementer_ty #where_clause {
-            #macro_name!{body_struct(<#trait_generics_p>, #delegate_ty, (#(#owned_ident())*), (#(#ref_ident())*), (#(#ref_mut_ident())*))}
+            #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #delegate_ty, (#(#owned_ident())*), (#(#ref_ident())*), (#(#ref_mut_ident())*))}
         }
     };
 
