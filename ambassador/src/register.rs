@@ -90,9 +90,6 @@ pub(crate) fn build_register_trait(
         #[doc(hidden)]
         macro_rules! #macro_def {
             // Override arms: explicit inline specifier in brackets
-            (body_struct([$ret:ident $($inline:meta)*] <#gen_matcher>, $ty:ty, $field_ident:tt)) => {
-                #macro_name!{body_struct([$($inline)*] <#gen_idents_pat>, $ty, ($field_ident), ($field_ident), ($field_ident))}
-            };
             (body_struct([$ret:ident $($inline:meta)*] <#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
                 #(#struct_items)*
             };
