@@ -42,10 +42,10 @@ impl InlineMode {
 
     pub(crate) fn as_bracket_tokens(self) -> TokenStream2 {
         match self {
-            InlineMode::Yes => quote!([inline]),
-            InlineMode::No => quote!([]),
-            InlineMode::Always => quote!([inline(always)]),
-            InlineMode::Never => quote!([inline(never)]),
+            InlineMode::Yes => quote!([return inline]),
+            InlineMode::No => quote!([return]),
+            InlineMode::Always => quote!([return inline(always)]),
+            InlineMode::Never => quote!([return inline(never)]),
         }
     }
 }

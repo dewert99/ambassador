@@ -13,7 +13,9 @@
 
 <br/>
 
-Delegating the implementation of traits to enum variants or fields of a struct normally requires a lot of boilerplate code. Ambassador is an attempt to eliminate that boilerplate by deriving the delegating trait implementation via procedural macros.
+Delegating the implementation of traits to enum variants or fields of a struct normally requires a lot of boilerplate
+code. Ambassador is an attempt to eliminate that boilerplate by deriving the delegating trait implementation via
+procedural macros.
 
 **The minimum supported Rust version is 1.68.0.**
 
@@ -29,7 +31,8 @@ More examples are also available https://github.com/hobofan/ambassador/tree/mast
 
 ### `#[delegatable_trait]`
 
-First we need to make our trait available for delegation by adding a `#[delegatable_trait]` attribute to it (this also makes your trait delegatable in other crates):
+First we need to make our trait available for delegation by adding a `#[delegatable_trait]` attribute to it (this also
+makes your trait delegatable in other crates):
 
 ```rust
 use ambassador::delegatable_trait;
@@ -42,7 +45,8 @@ pub trait Shout {
 
 ### `#[derive(Delegate)]` & `#[delegate(Trait)]`
 
-Now we can delegate the implementation of our trait to a struct field/enum variants by adding `#[derive(Delegate)]` and its associated attribute `#[delegate(Trait)]` to it:
+Now we can delegate the implementation of our trait to a struct field/enum variants by adding `#[derive(Delegate)]` and
+its associated attribute `#[delegate(Trait)]` to it:
 
 ```rust
 use ambassador::Delegate;
@@ -68,8 +72,8 @@ For structs with multiple fields, the field that should act as delegation target
 #[derive(Delegate)]
 #[delegate(Shout, target = "foo")] // <-------- Delegate implementation of Shout to struct field .foo
 pub struct WrappedCats {
-  foo: Cat,
-  bar: Cat,
+    foo: Cat,
+    bar: Cat,
 }
 ```
 
@@ -85,8 +89,10 @@ pub struct WrappedAnimals(Cat, Dog);
 
 Types that implement all the methods of a trait without implementing the trait itself,
 can be made to implement that trait by setting `target="self"`.
-This doesn't work for traits with associated types and constants, and requires the where clause to be added explicitly (see `where` key).
-If the type doesn't actually implement the methods (possibly due to an incomplete `where` clause) this can cause a `[unconditional_recursion]` error.
+This doesn't work for traits with associated types and constants, and requires the where clause to be added explicitly (
+see `where` key).
+If the type doesn't actually implement the methods (possibly due to an incomplete `where` clause) this can cause a
+`[unconditional_recursion]` error.
 
 A possible use case of this is when refactoring some methods of a public type into a trait,
 the type still needs to implement the methods outside the trait for semver reasons,
@@ -94,7 +100,7 @@ and using this feature reduces the boilderplate of implementing the trait with t
 
 ```rust
 #[derive(Delegate)]
-#[delegate(Shout, target="self")]
+#[delegate(Shout, target = "self")]
 pub struct Cat;
 
 impl Cat {
@@ -106,22 +112,26 @@ impl Cat {
 
 #### `#[delegate(..., where = "A: Shout")]` - `where` key
 
-To make a delegation apply only for certain generic bounds, similar to a [native where clause](https://doc.rust-lang.org/stable/rust-by-example/generics/where.html), you can specify a `where` attribute:
+To make a delegation apply only for certain generic bounds, similar to
+a [native where clause](https://doc.rust-lang.org/stable/rust-by-example/generics/where.html), you can specify a `where`
+attribute:
 
 A where clause is automatically applied that makes sure the target field implements the trait being delegated
 
 ```rust
 #[derive(Delegate)]
-#[delegate(Shout, where = "A: Debug")] // <---- Delegate implementation of Shout to .foo field if foo field implements Debug
+#[delegate(Shout, where = "A: Debug"
+)] // <---- Delegate implementation of Shout to .foo field if foo field implements Debug
 pub struct WrappedFoo<A> {
-  foo: A,
+    foo: A,
 }
 ```
 
 #### `#[delegate(Shout<X>)]` - trait generics
 
 We can also delegate traits with generics.
-When doing this all instances of `X` and `'x` followed by arbitrary digits eg. `X0` `X12` `'x3` are treated as maximally generic.
+When doing this all instances of `X` and `'x` followed by arbitrary digits eg. `X0` `X12` `'x3` are treated as maximally
+generic.
 The automatically added where clause ensures they are valid for the inner type being delegated to.
 Explict where clauses to further refine these types can be added as normal.
 Specific types can be used instead of `X` to only derive for those.
@@ -152,7 +162,9 @@ pub struct WrappedCat(Cat);
 
 ### For remote traits: `#[delegatable_trait_remote]`
 
-If you want to make an existing trait that lives outside you crate available for delegation, you can do so by copy-pasting it's signature into your code and using the `#[delegatable_trait_remote]` attribute (see [full code sample](./ambassador/tests/run-pass/delegate_trait_remote_display.rs)):
+If you want to make an existing trait that lives outside you crate available for delegation, you can do so by
+copy-pasting it's signature into your code and using the `#[delegatable_trait_remote]` attribute (
+see [full code sample](./ambassador/tests/run-pass/delegate_trait_remote_display.rs)):
 
 ```rust
 use ambassador::delegatable_trait_remote;
@@ -170,7 +182,9 @@ pub struct WrappedCat(Cat);
 
 ### For remote types `#[delegate_remote]`
 
-If you want to make an existing type that lives outside you crate delegate, you can do so by copy-pasting it's definition into your code and using the `#[delegate_remote]` attribute (see [full code sample](./ambassador/tests/run-pass/delegate_remote.rs)):
+If you want to make an existing type that lives outside you crate delegate, you can do so by copy-pasting it's
+definition into your code and using the `#[delegate_remote]` attribute (
+see [full code sample](./ambassador/tests/run-pass/delegate_remote.rs)):
 
 If the type is a struct, not all the fields have to be public, only the ones being delegated to.
 
@@ -200,13 +214,13 @@ Note: Because of the orphan rule `#[delegatable_trait_remote]` and `#[delegate_r
 ## Controlling inlining
 
 Both `#[delegatable_trait]` and `#[delegate]` can set the inlining mode for the
-delegated methods. You have to use the `inline` key with the values `yes` (i.e.,
-`#[inline]`), `no` (no inlining attribute), `always` (i.e.,
-`#[inline(always)]`), or `never` (i.e., `#[inline(never)]`).
+delegated methods. You have to use the `inline` key with the values `yes` (for
+`#[inline]`), `no` (no inlining attribute), `always` (for
+`#[inline(always)]`), or `never` (for `#[inline(never)]`).
 
 The value set in `#[delegatable_trait]` is used as the default for all
 delegations of that trait, but can be overridden by setting the `inline` key in
-`#[delegate]` to a different value. The default inlining mode is `yes` (i.e., `#[inline]`).
+`#[delegate]` to a different value. The default inlining mode is `yes` (for `#[inline]`).
 
 ```rust
 
@@ -272,7 +286,8 @@ pub fn main() {
 
 ### Delegate to tuple struct field
 
-Delegating a trait implementation for a tuple struct **(only single-field tuples supported for now)**, for e.g. a newtype pattern.
+Delegating a trait implementation for a tuple struct **(only single-field tuples supported for now)**, for e.g. a
+newtype pattern.
 
 ```rust
 use ambassador::{delegatable_trait, Delegate};
