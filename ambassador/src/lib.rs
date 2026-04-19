@@ -111,10 +111,13 @@
 //! ```
 //!
 //! # Backwards Compatibility
+//! ### 0.5.0 -> 0.5.1
+//! Libraries importing public delegatable traits cannot override inlining behaviour until their
+//! dependencies updated to version 1.5.1.
 //! ## 0.4.x -> 0.5.x
 //! Avoiding the automatic where clause is no longer supported. The macros now call the trait method
 //! specifically to avoid name collisions which prevents the use cases it used to support (see
-//! https://github.com/hobofan/ambassador/issues/75). Instead, delegating to "self"  can be used
+//! https://github.com/hobofan/ambassador/issues/75). Instead, delegating to "self" can be used
 //! if target has intrinsic methods instead of implementing the required trait, and delegating to
 //! remote "deref" and "deref_mut" methods can be used if delegation implementation required
 //! dereferences. For example:

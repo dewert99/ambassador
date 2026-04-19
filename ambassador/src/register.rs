@@ -90,10 +90,7 @@ pub(crate) fn build_register_trait(
         #[doc(hidden)]
         macro_rules! #macro_def {
             // Override arms: explicit inline specifier in brackets
-            (body_struct([$($inline:meta)*] <#gen_matcher>, $ty:ty, $field_ident:tt)) => {
-                #macro_name!{body_struct([$($inline)*] <#gen_idents_pat>, $ty, ($field_ident), ($field_ident), ($field_ident))}
-            };
-            (body_struct([$($inline:meta)*] <#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
+            (body_struct([$ret:ident $($inline:meta)*] <#gen_matcher>, $ty:ty, ($($ident_owned:tt)*), ($($ident_ref:tt)*), ($($ident_ref_mut:tt)*))) => {
                 #(#struct_items)*
             };
             // Default arms: redirect using trait-level default
@@ -108,13 +105,13 @@ pub(crate) fn build_register_trait(
             (resolve_path($err:literal, $(& $(mut)?)?,  $s:ident.)) => {
                 compile_error! {$err}
             };
-            (body_enum([$($inline:meta)*] <#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
+            (body_enum([$ret:ident $($inline:meta)*] <#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
                 #(#enum_items)*
             };
             (body_enum(<#gen_matcher>, $ty:ty, ($( $other_tys:ty ),*), ($( $variants:path ),+))) => {
                 #macro_name!{body_enum(#default_inline_bracket <#gen_idents_pat>, $ty, ($($other_tys),*), ($($variants),+))}
             };
-            (body_self([$($inline:meta)*] <#gen_matcher>)) => {
+            (body_self([$ret:ident $($inline:meta)*] <#gen_matcher>)) => {
                 #(#self_items)*
             };
             (body_self(<#gen_matcher>)) => {
@@ -410,9 +407,9 @@ fn build_method_invocation(
     };
 
     let mut method_invocation = if use_trait_method {
-        quote! { #trait_ident::#method_ident::<#(#generics,)*>(#field, #argument_list) #post }
+        quote! { $ret #trait_ident::#method_ident::<#(#generics,)*>(#field, #argument_list) #post }
     } else {
-        quote! { #field.#method_ident::<#(#generics,)*>(#argument_list) #post }
+        quote! { $ret #field.#method_ident::<#(#generics,)*>(#argument_list) #post }
     };
     if original_method.sig.unsafety.is_some() {
         method_invocation = quote! (

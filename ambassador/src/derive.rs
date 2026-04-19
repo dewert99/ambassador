@@ -224,7 +224,7 @@ fn delegate_single_attr(
 
             quote! {
                 impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, #field_ident)}
+                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, (#field_ident), (#field_ident), (#field_ident))}
                 }
             }
         }
@@ -242,7 +242,7 @@ fn delegate_single_attr(
 
             quote! {
                 impl <#(#impl_generics,)*> #trait_path_full for #implementer_ident #ty_generics #where_clause {
-                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, #field_ident)}
+                    #macro_name!{body_struct(#inline_attr <#trait_generics_p>, #field_type, (#field_ident), (#field_ident), (#field_ident))}
                 }
             }
         }
